@@ -1,0 +1,15 @@
+# Streamlit settings for the prototype. Streamlit reads this file when you
+# run the app from the repo root.
+
+[theme]
+# Light theme with large text and dark colors for strong contrast.
+# primaryColor is used for filter chips and score bars. White text on it passes WCAG AA.
+base = "light"
+primaryColor = "#1F4E9C"
+textColor = "#1A1A1A"
+baseFontSize = 18
+dataframeHeaderTextColor = "#1A1A1A"
+
+[browser]
+# Do not send usage statistics to Streamlit. The app makes no external calls.
+gatherUsageStats = false

@@ -51,12 +51,26 @@ python -m pip freeze > requirements.txt
 
 ## Run
 
-The scoring script and the app are not built yet. When they are, run them from the repo root:
+Run both commands from the repo root with `.venv` active.
 
 ```powershell
+# 1. Score the sample companies. Writes data/scored_leads.csv.
 python src/score.py
-streamlit run app/app.py
+
+# 2. Start the app. It opens in your browser at http://localhost:8501
+python -m streamlit run app/app.py
 ```
+
+Run step 1 again any time you change `data/sample_companies.csv` or the scoring settings at the top of `src/score.py`. Then refresh the app.
+
+What the app does:
+
+- Shows the ranked leads with filters by segment and region.
+- Shows each lead's relative fit score, the reasons, a point breakdown, and the data sources.
+- Marks leads with thin data as "needs review" and says what is missing.
+- Has a "Flag wrong data" button. Flags last only for the browser session and are not saved.
+
+The app reads only `data/scored_leads.csv` and makes no external calls. The theme settings, like font size and colors, are in `.streamlit/config.toml`.
 
 ## Team rules
 

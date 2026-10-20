@@ -16,6 +16,6 @@ Coral Keel Outboard Works (Sample),OEM,marine and RV,Caribbean,Bahamas,coralkeel
 Golden Furrow Ag Co-op (Sample),distributor,agricultural,US Midwest,USA,goldenfurrow.example,agricultural spray oil; hydraulic fluid; gear oil; commercial vehicle oil,high,sample,Farm co-op supplying members across three states
 Citrus Row Grower Supply (Sample),distributor,agricultural,US Southeast,USA,citrusrowsupply.example,agricultural spray oil; hydraulic fluid,medium,sample,Supplies orchards and citrus growers
 Pampas Field Equipment (Sample),OEM,agricultural,Latin America,Argentina,pampasfield.example,hydraulic fluid; gear oil,medium,sample,Small tractor attachment maker
-Quillwork Office Supply (Sample),distributor,other,US Northeast,USA,quillworkoffice.example,,high,sample,Poor fit test case: office supplies with no lubricant demand
-Sunny Crust Bakery Equipment (Sample),distributor,other,US Southwest,USA,sunnycrust.example,,medium,sample,Poor fit test case: food equipment reseller
-Maple Lane Janitorial Wholesale (Sample),distributor,distributor,US Northeast,USA,maplelanejanitorial.example,,high,sample,Poor fit test case: distributor type but sells cleaning supplies
+Quillwork Office Supply (Sample),distributor,other,US Northeast,USA,quillworkoffice.example,office supplies; paper products; printer ink,high,sample,Poor fit test case: office supplies with no lubricant demand
+Sunny Crust Bakery Equipment (Sample),distributor,other,US Southwest,USA,sunnycrust.example,bakery ovens; dough mixers; food display cases,medium,sample,Poor fit test case: food equipment reseller
+Maple Lane Janitorial Wholesale (Sample),distributor,distributor,US Northeast,USA,maplelanejanitorial.example,cleaning chemicals; floor care products; paper towels,high,sample,Poor fit test case: distributor type but sells cleaning supplies

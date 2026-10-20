@@ -101,6 +101,16 @@ def split_categories(text):
     return [item.strip() for item in text.split(";") if item.strip()]
 
 
+def find_missing(row):
+    """Return the key fields that are blank for this company."""
+    return [field for field in KEY_FIELDS if row[field] == ""]
+
+
+def get_points(weight, share):
+    """Turn a weight and a share (0 to 1) into whole points, rounding .5 up."""
+    return int(weight * share + 0.5)
+
+
 def get_confidence(row):
     """
     Return a confidence level and the notes that explain it.
@@ -108,7 +118,7 @@ def get_confidence(row):
     Levels: "high", "medium", or "needs review".
     """
     notes = []
-    missing = [field for field in KEY_FIELDS if row[field] == ""]
+    missing = find_missing(row)
     completeness = row["data_completeness"] or "unknown"
 
     if missing:
@@ -129,26 +139,29 @@ def get_confidence(row):
 def score_company(row):
     """
     Score one company from its structured columns only (not notes).
-    Returns a dict with score (0 to 100), reasons, confidence, and confidence notes.
+    Returns a dict with score (0 to 100), reasons, confidence, confidence notes,
+    the points for each part, the matched categories, and whether the cap applied.
     """
     reasons = []
-    total = 0.0
+    points_by_part = {}
 
     # 1. Product fit: how many Ultrachem categories the company lists.
     listed = split_categories(row["product_categories"])
     matches = [c for c in listed if c in ULTRACHEM_CATEGORIES]
     others = [c for c in listed if c not in ULTRACHEM_CATEGORIES]
     share = min(len(matches), MATCHES_FOR_FULL_PRODUCT_POINTS) / MATCHES_FOR_FULL_PRODUCT_POINTS
-    points = WEIGHTS["product_fit"] * share
-    total += points
+    points = get_points(WEIGHTS["product_fit"], share)
+    points_by_part["product_fit"] = points
     if matches:
         word = "category" if len(matches) == 1 else "categories"
         reasons.append(
             f"Matches {len(matches)} Ultrachem product {word}: {', '.join(matches)} "
             f"(+{points:.0f} of {WEIGHTS['product_fit']})."
         )
+    elif listed:
+        reasons.append(f"Sells products, but none are Ultrachem categories (+0 of {WEIGHTS['product_fit']}).")
     else:
-        reasons.append(f"No Ultrachem product categories listed (+0 of {WEIGHTS['product_fit']}).")
+        reasons.append(f"No product categories on record (+0 of {WEIGHTS['product_fit']}).")
     if others:
         reasons.append("Also lists categories Ultrachem does not make: " + ", ".join(others) + ".")
 
@@ -160,23 +173,28 @@ def score_company(row):
     ]
     for column, weight_name, table, label in lookups:
         value = row[column]
-        points = WEIGHTS[weight_name] * table.get(value, 0.0)
-        total += points
+        points = get_points(WEIGHTS[weight_name], table.get(value, 0.0))
+        points_by_part[weight_name] = points
         shown = value if value else "unknown"
         reasons.append(f"{label} is {shown} (+{points:.0f} of {WEIGHTS[weight_name]}).")
 
     # 3. Cap the score when nothing Ultrachem makes is a match.
-    if not matches and total > NO_PRODUCT_MATCH_CAP:
+    total = sum(points_by_part.values())
+    cap_applied = not matches and total > NO_PRODUCT_MATCH_CAP
+    if cap_applied:
         total = NO_PRODUCT_MATCH_CAP
         reasons.append(f"Score capped at {NO_PRODUCT_MATCH_CAP} because no product categories match.")
 
     confidence, confidence_notes = get_confidence(row)
 
     return {
-        "score": round(total),
+        "score": total,
         "reasons": reasons,
         "confidence": confidence,
         "confidence_notes": confidence_notes,
+        "points": points_by_part,
+        "matched": matches,
+        "cap_applied": cap_applied,
     }
 
 
@@ -192,18 +210,32 @@ def rank_companies(companies):
     # Join lists with " | " so each cell stays readable in a CSV.
     ranked["reasons"] = [" | ".join(r["reasons"]) for r in results]
     ranked["confidence_notes"] = [" | ".join(r["confidence_notes"]) for r in results]
+    # Point breakdown, so the app can show it without parsing the reasons text.
+    for part in WEIGHTS:
+        column = part.replace("_fit", "_points")  # product_fit -> product_points
+        ranked[column] = [r["points"][part] for r in results]
+    ranked["cap_applied"] = [r["cap_applied"] for r in results]
+    ranked["matched_count"] = [len(r["matched"]) for r in results]
+    ranked["matched_categories"] = ["; ".join(r["matched"]) for r in results]
+    ranked["missing_fields"] = ["; ".join(find_missing(row)) for _, row in companies.iterrows()]
     ranked["score_method"] = "rules-based (not AI), assumed criteria"
 
-    # Highest score first. Ties go to the more complete record, then by name.
-    order = {"high": 0, "medium": 1, "needs review": 2}
-    ranked["_tiebreak"] = ranked["confidence"].map(order)
-    ranked = ranked.sort_values(["score", "_tiebreak", "name"], ascending=[False, True, True])
-    ranked = ranked.drop(columns="_tiebreak")
+    # Highest score first. Ties go to more matched categories,
+    # then more complete data, then name A to Z.
+    completeness_order = {"high": 0, "medium": 1, "low": 2}
+    ranked["_completeness"] = ranked["data_completeness"].map(completeness_order).fillna(3)
+    ranked = ranked.sort_values(
+        ["score", "matched_count", "_completeness", "name"],
+        ascending=[False, False, True, True],
+    )
+    ranked = ranked.drop(columns="_completeness")
     ranked.insert(0, "rank", range(1, len(ranked) + 1))
 
     columns = [
         "rank", "name", "score", "confidence", "needs_review", "reasons",
-        "confidence_notes", "type", "segment", "region", "country", "website",
+        "confidence_notes", "product_points", "type_points", "segment_points",
+        "region_points", "cap_applied", "matched_count", "matched_categories",
+        "missing_fields", "type", "segment", "region", "country", "website",
         "product_categories", "data_completeness", "data_source", "score_method",
     ]
     return ranked[columns]
