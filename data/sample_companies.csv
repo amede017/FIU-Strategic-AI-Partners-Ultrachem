@@ -1,0 +1,21 @@
+name,type,segment,region,country,website,product_categories,data_completeness,data_source,notes
+Gator Flats Lube Supply (Sample),distributor,distributor,US Southeast,USA,gatorflats-lube.example,passenger car oil; commercial vehicle oil; gear oil; hydraulic fluid,high,sample,Regional lubricant distributor serving auto shops
+Prairie Gear Oil Wholesale (Sample),distributor,distributor,US Midwest,USA,prairiegear.example,commercial vehicle oil; transmission fluid; gear oil; hydraulic fluid,high,sample,Wholesale to farm and truck dealers
+Andes Motor Fluids Import (Sample),distributor,distributor,Latin America,Colombia,andesmotorfluids.example,passenger car oil; motorcycle oil; transmission fluid,medium,sample,Importer looking for U.S. brands
+Blue Mesa Private Brands (Sample),private label,distributor,US Southwest,USA,bluemesabrands.example,passenger car oil; transmission fluid; rust protective oil,high,sample,Sells store-brand fluids to regional auto parts chains
+Turnpike Fleet Care (Sample),end user,fleet service,US Northeast,USA,turnpikefleetcare.example,commercial vehicle oil; transmission fluid; gear oil,high,sample,Maintains about 400 delivery trucks
+Desert Haul Service Centers (Sample),end user,fleet service,US Southwest,USA,deserthaul.example,commercial vehicle oil; hydraulic fluid,medium,sample,Service centers for regional freight fleets
+Harbor Route Transit Repair (Sample),end user,fleet service,Caribbean,Puerto Rico,,commercial vehicle oil,low,sample,Thin data test case: no website found
+Rustbelt Machine Upkeep (Sample),end user,industrial maintenance,US Midwest,USA,rustbeltupkeep.example,hydraulic fluid; rust protective oil; gear oil,high,sample,Maintenance contractor for factories
+Kiln and Coil Thermal Services (Sample),end user,industrial maintenance,US Southeast,USA,kilncoilthermal.example,heat transfer fluid; hydraulic fluid,medium,sample,Services industrial heating systems
+Ironpine Press Works (Sample),OEM,industrial maintenance,US West,USA,ironpinepress.example,hydraulic fluid,medium,sample,Hydraulic press maker that could ship machines with branded fluid
+Northbay Plant Services (Sample),end user,industrial maintenance,Europe,Germany,,,low,sample,Thin data test case: name and region only
+Pelican Point Marine Supply (Sample),distributor,marine and RV,US Southeast,USA,pelicanpointmarine.example,marine oil; gear oil; rust protective oil,high,sample,Marina supply distributor along the Gulf Coast
+Wandering Pines RV Outfitters (Sample),distributor,marine and RV,US West,USA,wanderingpinesrv.example,RV oil; passenger car oil; transmission fluid,medium,sample,RV parts and service dealer
+Coral Keel Outboard Works (Sample),OEM,marine and RV,Caribbean,Bahamas,coralkeel.example,marine oil,low,sample,Thin data test case: website found but little product detail
+Golden Furrow Ag Co-op (Sample),distributor,agricultural,US Midwest,USA,goldenfurrow.example,agricultural spray oil; hydraulic fluid; gear oil; commercial vehicle oil,high,sample,Farm co-op supplying members across three states
+Citrus Row Grower Supply (Sample),distributor,agricultural,US Southeast,USA,citrusrowsupply.example,agricultural spray oil; hydraulic fluid,medium,sample,Supplies orchards and citrus growers
+Pampas Field Equipment (Sample),OEM,agricultural,Latin America,Argentina,pampasfield.example,hydraulic fluid; gear oil,medium,sample,Small tractor attachment maker
+Quillwork Office Supply (Sample),distributor,other,US Northeast,USA,quillworkoffice.example,,high,sample,Poor fit test case: office supplies with no lubricant demand
+Sunny Crust Bakery Equipment (Sample),distributor,other,US Southwest,USA,sunnycrust.example,,medium,sample,Poor fit test case: food equipment reseller
+Maple Lane Janitorial Wholesale (Sample),distributor,distributor,US Northeast,USA,maplelanejanitorial.example,,high,sample,Poor fit test case: distributor type but sells cleaning supplies
