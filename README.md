@@ -61,6 +61,8 @@ python src/score.py
 python -m streamlit run app/app.py
 ```
 
+To run the scoring tests: `python -m pytest`
+
 Run step 1 again any time you change `data/sample_companies.csv` or the scoring settings at the top of `src/score.py`. Then refresh the app.
 
 What the app does:

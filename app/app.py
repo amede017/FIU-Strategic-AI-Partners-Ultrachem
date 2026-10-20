@@ -38,6 +38,17 @@ FIELD_LABELS = {
 STYLE = """
 <style>
 [data-testid="stTable"] th, [data-testid="stTable"] td { color: #1A1A1A; }
+/* Streamlit's default gray for captions and placeholders is 4.4 to 1 on the
+   sidebar, just under AA. These darker grays pass on white and on the sidebar. */
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * { color: #4D4D4D !important; opacity: 1 !important; }
+input::placeholder, textarea::placeholder { color: #595959 !important; opacity: 1; }
+[data-testid="stSidebarCollapseButton"], [data-testid="stSidebarCollapseButton"] * { color: #4D4D4D !important; }
+/* Let the filter boxes grow and show full chip names, so no chip is cut off. */
+[data-testid="stSidebar"] [data-testid="stMultiSelect"] [role="group"],
+[data-testid="stSidebar"] [data-testid="stMultiSelectTagsContainer"] { max-height: none !important; overflow: visible !important; }
+[data-testid="stSidebar"] [data-testid="stMultiSelectTagsContainer"] span {
+    max-width: none !important; text-overflow: clip !important; overflow: visible !important; white-space: normal !important;
+}
 .notice {
     padding: 0.9rem 1.1rem;
     border-radius: 0.5rem;
@@ -96,8 +107,8 @@ def review_message(row):
     return "<strong>Needs review.</strong> " + " ".join(parts)
 
 
-def show_ranked_list(leads, total_count):
-    """The ranked table, after filters."""
+def show_ranked_list(leads, total_count, table_key):
+    """The ranked table, after filters. Returns the rank of a clicked row, or None."""
     st.subheader("Ranked leads")
     review_count = int(leads["needs_review"].sum())
     st.write(f"Showing **{len(leads)} of {total_count}** leads. **{review_count}** need review.")
@@ -117,8 +128,12 @@ def show_ranked_list(leads, total_count):
             return "background-color: #FDECEA; color: #5F1A12; font-weight: bold;"
         return ""
 
-    st.dataframe(
+    # Clicking a row reruns the app and reports which row was picked.
+    event = st.dataframe(
         table.style.map(color_status, subset=["Status"]),
+        key=table_key,
+        on_select="rerun",
+        selection_mode="single-row",
         hide_index=True,
         width="stretch",
         height=40 * (len(table) + 1) + 4,  # tall enough to show every row without scrolling
@@ -134,9 +149,17 @@ def show_ranked_list(leads, total_count):
         },
     )
     st.caption(
+        "Click a row to open its details below. "
         "The relative fit score ranks leads against each other using our assumed rules. "
-        "It is not a probability and has not been checked by Ultrachem."
+        "It is not a probability and has not been checked by Ultrachem. "
+        "Ties go to the lead with more matched Ultrachem categories, then more complete data, "
+        "then company name A to Z."
     )
+
+    rows = event.selection.rows
+    if rows and rows[0] < len(table):
+        return int(table.iloc[rows[0]]["Rank"])
+    return None
 
 
 def show_point_breakdown(row):
@@ -147,16 +170,18 @@ def show_point_breakdown(row):
         ("Segment", "segment_points", "segment_fit"),
         ("Region", "region_points", "region_fit"),
     ]
-    rows = [{"Part": label, "Points earned": int(row[col]), "Points possible": WEIGHTS[w]} for label, col, w in parts]
-    subtotal = sum(r["Points earned"] for r in rows)
-    rows.append({"Part": "Subtotal", "Points earned": subtotal, "Points possible": sum(WEIGHTS.values())})
+    rows = [{"Part": label, "Earned": int(row[col]), "Possible": WEIGHTS[w]} for label, col, w in parts]
+    subtotal = sum(r["Earned"] for r in rows)
+    rows.append({"Part": "Subtotal", "Earned": subtotal, "Possible": sum(WEIGHTS.values())})
     if row["cap_applied"]:
-        rows.append({"Part": "Cap: no Ultrachem products match", "Points earned": NO_PRODUCT_MATCH_CAP, "Points possible": ""})
-    rows.append({"Part": "Relative fit score", "Points earned": int(row["score"]), "Points possible": 100})
+        rows.append({"Part": "Cap: no product match", "Earned": NO_PRODUCT_MATCH_CAP, "Possible": ""})
+    rows.append({"Part": "Relative fit score", "Earned": int(row["score"]), "Possible": 100})
     breakdown = pd.DataFrame(rows).set_index("Part")
     # Text column so the blank on the cap row does not mix with numbers.
-    breakdown["Points possible"] = breakdown["Points possible"].astype(str)
-    st.table(breakdown)
+    breakdown["Possible"] = breakdown["Possible"].astype(str)
+    # A narrow column keeps the earned and possible points close together.
+    narrow, _ = st.columns([2, 3])
+    narrow.table(breakdown)
 
 
 def show_data_sources(row):
@@ -248,18 +273,27 @@ def main():
         st.header("Filters")
         segments = sorted(leads["segment"].unique())
         regions = sorted(leads["region"].unique())
-        chosen_segments = st.multiselect("Segment", segments, default=segments)
-        chosen_regions = st.multiselect("Region", regions, default=regions)
+        st.caption("Leave a filter empty to show all.")
+        chosen_segments = st.multiselect("Segment", segments, placeholder="All segments")
+        chosen_regions = st.multiselect("Region", regions, placeholder="All regions")
 
-    filtered = leads[leads["segment"].isin(chosen_segments) & leads["region"].isin(chosen_regions)]
-    show_ranked_list(filtered, len(leads))
+    # An empty filter means "show all".
+    filtered = leads
+    if chosen_segments:
+        filtered = filtered[filtered["segment"].isin(chosen_segments)]
+    if chosen_regions:
+        filtered = filtered[filtered["region"].isin(chosen_regions)]
+
+    # A new table key per filter choice clears an old row click when filters change.
+    table_key = "lead_table_" + "|".join(chosen_segments + ["/"] + chosen_regions)
+    clicked_rank = show_ranked_list(filtered, len(leads), table_key)
 
     st.divider()
     st.subheader("Lead detail")
     if filtered.empty:
         st.info("No leads match these filters. Change the filters in the sidebar.")
     else:
-        show_detail_section(filtered, len(leads))
+        show_detail_section(filtered, len(leads), clicked_rank)
 
     st.divider()
     show_sample_banner()
@@ -279,16 +313,27 @@ def show_flags_sidebar():
         st.caption("Flags last only while this browser tab is open.")
 
 
-def show_detail_section(filtered, total_count):
-    """Lead picker plus the detail view for the chosen lead."""
+def show_detail_section(filtered, total_count, clicked_rank):
+    """Lead picker plus the detail view for the chosen lead.
+    The lead can be picked from the dropdown or by clicking a table row."""
     options = filtered["rank"].tolist()
-    # Optional: open a lead directly with ?rank=16 in the URL.
-    start = st.query_params.get("rank", "")
-    index = options.index(int(start)) if start.isdigit() and int(start) in options else 0
+
+    # First visit: start on the top lead, or on ?rank=16 if it is in the URL.
+    if "chosen_rank" not in st.session_state:
+        start = st.query_params.get("rank", "")
+        st.session_state.chosen_rank = int(start) if start.isdigit() else options[0]
+    # A new row click moves the dropdown to that lead.
+    if clicked_rank is not None and clicked_rank != st.session_state.get("last_clicked"):
+        st.session_state.chosen_rank = clicked_rank
+    st.session_state.last_clicked = clicked_rank
+    # If filters hid the chosen lead, fall back to the top lead shown.
+    if st.session_state.chosen_rank not in options:
+        st.session_state.chosen_rank = options[0]
+
     chosen_rank = st.selectbox(
         "Choose a lead to see details",
         options,
-        index=index,
+        key="chosen_rank",
         format_func=lambda r: f"#{r}  {filtered.loc[filtered['rank'] == r, 'name'].iloc[0]}",
     )
     row = filtered[filtered["rank"] == chosen_rank].iloc[0]

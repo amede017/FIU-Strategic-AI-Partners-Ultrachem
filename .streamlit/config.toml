@@ -10,6 +10,10 @@ textColor = "#1A1A1A"
 baseFontSize = 18
 dataframeHeaderTextColor = "#1A1A1A"
 
+[client]
+# Hide the Deploy button and the main menu.
+toolbarMode = "minimal"
+
 [browser]
 # Do not send usage statistics to Streamlit. The app makes no external calls.
 gatherUsageStats = false
