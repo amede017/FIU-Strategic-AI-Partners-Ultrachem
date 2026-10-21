@@ -18,18 +18,18 @@ from score import INPUT_FILE, TARGET_STATE, rank_companies, score_company  # noq
 
 # Rows in data/sample_companies.csv built as test cases.
 THIN_DATA_ROWS = [
-    "Glades Road Auto Supply (Sample)",
-    "Naples Harbor Supply Co (Sample)",
-    "Gainesville Fleet Service Supply (Sample)",
+    "Tamberly Auto Supply (Sample)",
+    "Quarrow Harbor Supply Co (Sample)",
+    "Fenwyck Fleet Service Supply (Sample)",
 ]
 DISQUALIFIER_ROWS = {
-    "Skyport Aviation Fluids Supply (Sample)": "aviation_only",
-    "Peachtree Lube Distributors (Sample)": "outside_target_state",
-    "Coquina Quick Lube Centers (Sample)": "not_a_distributor",
-    "Seminole Parts Warehouse (Sample)": "existing_customer",
-    "Palm Coast Janitorial Wholesale (Sample)": "no_product_match",
+    "Zephrin Aviation Fluids Supply (Sample)": "aviation_only",
+    "Ardlow Lube Distributors (Sample)": "outside_target_state",
+    "Bellaquin Quick Lube Centers (Sample)": "not_a_distributor",
+    "Hollisby Parts Warehouse (Sample)": "existing_customer",
+    "Wrenmoor Janitorial Wholesale (Sample)": "no_product_match",
 }
-POOR_FIT_HIGH_COMPLETENESS = "Palm Coast Janitorial Wholesale (Sample)"
+POOR_FIT_HIGH_COMPLETENESS = "Wrenmoor Janitorial Wholesale (Sample)"
 
 
 @pytest.fixture(scope="module")

@@ -123,10 +123,22 @@ def show_ranked_list(leads, show_all, table_key):
     st.write(f"Showing **{len(leads)}** leads. **{review_count}** need review.")
     st.markdown("**Click a row** to open that lead's details below the table.")
 
+    score_help = "Compares leads in this list from 0 to 100. It is not a chance of closing a deal."
+    if show_all:
+        # This view includes disqualified leads, so the score column is text.
+        # The score is still in scored_leads.csv and in the lead detail.
+        scores = leads.apply(lambda r: "Not ranked" if r["status"] == "disqualified" else str(r["score"]), axis=1)
+        score_column = st.column_config.TextColumn("Relative fit score", help=score_help)
+    else:
+        # The top 10 view never has disqualified leads, so it keeps the score bars.
+        scores = leads["score"]
+        score_column = st.column_config.ProgressColumn(
+            "Relative fit score", help=score_help, min_value=0, max_value=100, format="%d")
+
     table = pd.DataFrame({
         "Rank": leads.apply(rank_text, axis=1),
         "Distributor": leads["name"],
-        "Relative fit score": leads["score"],
+        "Relative fit score": scores,
         "Status": leads.apply(status_label, axis=1),
         "Distributor type": leads["distributor_type"],
         "City": leads["city"],
@@ -150,13 +162,7 @@ def show_ranked_list(leads, show_all, table_key):
         height=40 * (len(table) + 1) + 4,  # tall enough to show every row without scrolling
         column_config={
             "Rank": st.column_config.TextColumn("Rank", width="small"),
-            "Relative fit score": st.column_config.ProgressColumn(
-                "Relative fit score",
-                help="Compares leads in this list from 0 to 100. It is not a chance of closing a deal.",
-                min_value=0,
-                max_value=100,
-                format="%d",
-            ),
+            "Relative fit score": score_column,
         },
     )
     st.caption(
@@ -182,7 +188,10 @@ def show_point_breakdown(row):
         ("Distributor type", "type_points", "type_fit"),
     ]
     rows = [{"Part": label, "Earned": int(row[col]), "Possible": WEIGHTS[w]} for label, col, w in parts]
-    rows.append({"Part": "Relative fit score", "Earned": int(row["score"]), "Possible": 100})
+    if row["status"] == "disqualified":
+        rows.append({"Part": "Would have scored", "Earned": int(row["score"]), "Possible": 100})
+    else:
+        rows.append({"Part": "Relative fit score", "Earned": int(row["score"]), "Possible": 100})
     breakdown = pd.DataFrame(rows).set_index("Part")
     # A narrow column keeps the earned and possible points close together.
     narrow, _ = st.columns([2, 3])
@@ -238,18 +247,20 @@ def show_lead_detail(row, ranked_count):
     st.subheader(row["name"])
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Relative fit score", f"{int(row['score'])} / 100",
-                help="Compares leads in this list. It is not a probability.")
     if row["status"] == "disqualified":
-        col2.metric("Rank", "Not ranked")
-        col3.metric("Status", "disqualified")
+        col1.metric("Relative fit score", "Not ranked")
+        col2.metric("Status", "disqualified")
+        col3.metric("Confidence", row["confidence"])
     else:
+        col1.metric("Relative fit score", f"{int(row['score'])} / 100",
+                    help="Compares leads in this list. It is not a probability.")
         col2.metric("Rank", f"#{row['rank']} of {ranked_count}")
         col3.metric("Confidence", row["confidence"])
 
     if row["status"] == "disqualified":
         reasons = " ".join(row["disqualify_reasons"].split(" | "))
         notice("dq", f"<strong>Disqualified.</strong> {reasons} "
+                     f"Without this rule it would have scored {int(row['score'])} out of 100. "
                      "This lead is not in the recommended list.")
     elif row["needs_review"]:
         notice("review", review_message(row))

@@ -70,8 +70,17 @@ README.md
 - Make small, incremental changes when I ask for revisions instead of rewriting everything.
 
 ## Open items
-- The client call (CEO) happens the day after this file was written. The target segment, product lines, lead criteria, and any data will come from it. Update this file afterward.
-- Unknown: whether the client wants an EV-related segment. Treat as a question for the client, not an assumption.
+The client call is done. Its outcomes are in "Scope update after client call" below.
+Questions for the on-site visit. Each answer changes the settings block in `src/score.py`:
+- Which state should we target? Florida is a placeholder until sales confirms.
+- Does a distributor carrying a competing brand help or hurt it as a lead? The prototype assumes it helps.
+- Should existing Ultrachem customers be excluded? The prototype assumes yes.
+- What does "electrical power" cover? The prototype reads it as power generation oil, which is unconfirmed.
+- Which distributor types matter most?
+- What disqualifies a distributor?
+- How does the sales cycle work, from first contact to first order?
+- What format and framework do the existing agents use, so our ranking output can connect to them?
+- Still open from before: whether the client wants an EV-related segment. Treat as a question for the client, not an assumption.
 
 ## First tasks for Claude Code
 1. Check the environment: Python version, that `.venv` is active, and which packages are installed.
@@ -84,7 +93,7 @@ README.md
 - Focus: distributors only. Private label and OEM moved to backlog.
 - Geography: one state, to be confirmed with the sales team.
 - Output: a short curated list. For each lead: who to pursue, why it is commercially attractive, and the recommended next step.
-- Human in the loop: sales reps (Diego and Jorge) approve, reject, or edit recommendations with a reason.
+- Human in the loop: sales reps approve, reject, or edit recommendations with a reason.
 - Delivery: an agent that connects to Ultrachem's existing agent network. The ranking must be saved as structured data another agent can consume.
 - Products: transportation (motorcycles, vehicles, boats, electrical power, locomotive) and water-based (coolants, antifreeze, refrigeration). No aviation fluids.
 - Outcome metric: share of the top 10 recommended distributors the reps say they would contact.
