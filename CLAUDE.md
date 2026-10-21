@@ -79,3 +79,14 @@ README.md
 3. Create `data/sample_companies.csv` with about 15 to 20 realistic but clearly labeled sample companies across a few segments (distributors, fleet service, industrial maintenance, marine and RV, agricultural), with columns for name, type, region, website, product categories, and a data completeness field.
 4. Write a rules-based scoring function in `src/score.py` that returns a score, the reasons, and a confidence level, and saves ranked results to `data/scored_leads.csv`.
 5. Build a Streamlit app in `app/app.py` with a ranked list, a lead detail view showing reasons and sources, a low-confidence "needs review" state, and filters by segment and region.
+
+## Scope update after client call
+- Focus: distributors only. Private label and OEM moved to backlog.
+- Geography: one state, to be confirmed with the sales team.
+- Output: a short curated list. For each lead: who to pursue, why it is commercially attractive, and the recommended next step.
+- Human in the loop: sales reps (Diego and Jorge) approve, reject, or edit recommendations with a reason.
+- Delivery: an agent that connects to Ultrachem's existing agent network. The ranking must be saved as structured data another agent can consume.
+- Products: transportation (motorcycles, vehicles, boats, electrical power, locomotive) and water-based (coolants, antifreeze, refrigeration). No aviation fluids.
+- Outcome metric: share of the top 10 recommended distributors the reps say they would contact.
+- Top risk: the agent surfaces leads that are not real opportunities.
+- Still unknown: disqualifying factors, sales cycle, state, agent framework. To be learned at the on-site visit.
