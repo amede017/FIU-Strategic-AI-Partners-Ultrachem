@@ -19,19 +19,13 @@ import streamlit as st
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCORED_FILE = REPO_ROOT / "data" / "scored_leads.csv"
 
-# Import the max points from score.py so the app and scorer never disagree.
+# Import settings from score.py so the app and scorer never disagree.
 # This only reads settings. It does not re-score anything.
 sys.path.insert(0, str(REPO_ROOT / "src"))
-from score import NO_PRODUCT_MATCH_CAP, WEIGHTS  # noqa: E402
+from score import FIELD_LABELS, TARGET_STATE_NAME, WEIGHTS  # noqa: E402
 
-# Plain names for the fields score.py checks for confidence.
-FIELD_LABELS = {
-    "type": "company type",
-    "segment": "segment",
-    "region": "region",
-    "website": "website",
-    "product_categories": "product categories",
-}
+# The default view shows this many top-ranked leads.
+TOP_N = 10
 
 # High-contrast message boxes. Font size and theme colors are in .streamlit/config.toml.
 # Text and background pairs below pass WCAG AA contrast (4.5 to 1 or higher).
@@ -61,12 +55,14 @@ input::placeholder, textarea::placeholder { color: #595959 !important; opacity: 
 .notice-review { background: #FDECEA; color: #5F1A12; border-color: #B42318; }
 .notice-ok     { background: #E7F5EC; color: #0B4A26; border-color: #1E7B45; }
 .notice-medium { background: #E8F0FB; color: #12325E; border-color: #2E5FA8; }
+.notice-dq     { background: #EEEEEE; color: #262626; border-color: #595959; }
+.notice-action { background: #FFFFFF; color: #1A1A1A; border-color: #1F4E9C; border: 1px solid #1F4E9C; border-left: 6px solid #1F4E9C; }
 </style>
 """
 
 
 def notice(kind, html):
-    """Show a colored message box. kind is sample, review, ok, or medium."""
+    """Show a colored message box. kind is sample, review, ok, medium, dq, or action."""
     st.markdown(f'<div class="notice notice-{kind}" role="note">{html}</div>', unsafe_allow_html=True)
 
 
@@ -76,7 +72,8 @@ def show_sample_banner():
         "sample",
         "<strong>Prototype with sample data.</strong> Every company here is made up. "
         "Scores come from fixed rules, <strong>not real AI</strong>. "
-        "The rules are our assumptions until Ultrachem confirms them.",
+        "The rules are our assumptions until Ultrachem confirms them. "
+        f"{TARGET_STATE_NAME} is a placeholder until sales confirms the state.",
     )
 
 
@@ -84,6 +81,8 @@ def show_sample_banner():
 def load_leads():
     """Read the scored leads file and fill blanks with empty text."""
     leads = pd.read_csv(SCORED_FILE)
+    # Disqualified leads have a blank rank. Int64 keeps the others as whole numbers.
+    leads["rank"] = leads["rank"].astype("Int64")
     text_columns = [c for c in leads.columns
                     if not pd.api.types.is_numeric_dtype(leads[c]) and not pd.api.types.is_bool_dtype(leads[c])]
     return leads.fillna({c: "" for c in text_columns})
@@ -91,9 +90,16 @@ def load_leads():
 
 def status_label(row):
     """Short status text for the list. The symbol helps readers who cannot see color."""
+    if row["status"] == "disqualified":
+        return "✕ Disqualified"
     if row["needs_review"]:
         return "⚠ Needs review"
     return f"{row['confidence'].capitalize()} confidence"
+
+
+def rank_text(row):
+    """'3' for a ranked lead, blank for a disqualified one."""
+    return "" if pd.isna(row["rank"]) else str(row["rank"])
 
 
 def review_message(row):
@@ -107,25 +113,30 @@ def review_message(row):
     return "<strong>Needs review.</strong> " + " ".join(parts)
 
 
-def show_ranked_list(leads, total_count, table_key):
-    """The ranked table, after filters. Returns the rank of a clicked row, or None."""
-    st.subheader("Ranked leads")
+def show_ranked_list(leads, show_all, table_key):
+    """The ranked table, after filters. Returns the name of a clicked row, or None."""
+    if show_all:
+        st.subheader("All leads")
+    else:
+        st.subheader(f"Top {TOP_N} recommended distributors")
     review_count = int(leads["needs_review"].sum())
-    st.write(f"Showing **{len(leads)} of {total_count}** leads. **{review_count}** need review.")
+    st.write(f"Showing **{len(leads)}** leads. **{review_count}** need review.")
+    st.markdown("**Click a row** to open that lead's details below the table.")
 
     table = pd.DataFrame({
-        "Rank": leads["rank"],
-        "Company": leads["name"],
+        "Rank": leads.apply(rank_text, axis=1),
+        "Distributor": leads["name"],
         "Relative fit score": leads["score"],
         "Status": leads.apply(status_label, axis=1),
-        "Segment": leads["segment"],
-        "Region": leads["region"],
-        "Type": leads["type"],
+        "Distributor type": leads["distributor_type"],
+        "City": leads["city"],
     })
 
     def color_status(value):
         if value.startswith("⚠"):
             return "background-color: #FDECEA; color: #5F1A12; font-weight: bold;"
+        if value.startswith("✕"):
+            return "background-color: #EEEEEE; color: #262626; font-weight: bold;"
         return ""
 
     # Clicking a row reruns the app and reports which row was picked.
@@ -138,7 +149,7 @@ def show_ranked_list(leads, total_count, table_key):
         width="stretch",
         height=40 * (len(table) + 1) + 4,  # tall enough to show every row without scrolling
         column_config={
-            "Rank": st.column_config.NumberColumn("Rank", width="small"),
+            "Rank": st.column_config.TextColumn("Rank", width="small"),
             "Relative fit score": st.column_config.ProgressColumn(
                 "Relative fit score",
                 help="Compares leads in this list from 0 to 100. It is not a chance of closing a deal.",
@@ -149,16 +160,16 @@ def show_ranked_list(leads, total_count, table_key):
         },
     )
     st.caption(
-        "Click a row to open its details below. "
         "The relative fit score ranks leads against each other using our assumed rules. "
         "It is not a probability and has not been checked by Ultrachem. "
-        "Ties go to the lead with more matched Ultrachem categories, then more complete data, "
+        "Disqualified leads are never ranked, whatever their score. "
+        "Ties go to the lead with more matched Ultrachem lines, then more complete data, "
         "then company name A to Z."
     )
 
     rows = event.selection.rows
     if rows and rows[0] < len(table):
-        return int(table.iloc[rows[0]]["Rank"])
+        return table.iloc[rows[0]]["Distributor"]
     return None
 
 
@@ -166,19 +177,13 @@ def show_point_breakdown(row):
     """Table of points earned for each part of the score."""
     parts = [
         ("Product fit", "product_points", "product_fit"),
-        ("Company type", "type_points", "type_fit"),
-        ("Segment", "segment_points", "segment_fit"),
-        ("Region", "region_points", "region_fit"),
+        ("Size", "size_points", "size_fit"),
+        ("Brands carried", "brand_points", "brand_fit"),
+        ("Distributor type", "type_points", "type_fit"),
     ]
     rows = [{"Part": label, "Earned": int(row[col]), "Possible": WEIGHTS[w]} for label, col, w in parts]
-    subtotal = sum(r["Earned"] for r in rows)
-    rows.append({"Part": "Subtotal", "Earned": subtotal, "Possible": sum(WEIGHTS.values())})
-    if row["cap_applied"]:
-        rows.append({"Part": "Cap: no product match", "Earned": NO_PRODUCT_MATCH_CAP, "Possible": ""})
     rows.append({"Part": "Relative fit score", "Earned": int(row["score"]), "Possible": 100})
     breakdown = pd.DataFrame(rows).set_index("Part")
-    # Text column so the blank on the cap row does not mix with numbers.
-    breakdown["Possible"] = breakdown["Possible"].astype(str)
     # A narrow column keeps the earned and possible points close together.
     narrow, _ = st.columns([2, 3])
     narrow.table(breakdown)
@@ -195,11 +200,18 @@ def show_data_sources(row):
         website = f"{row['website']} (fictional address, not visited)"
     else:
         website = "none on record"
+    location = ", ".join(part for part in [row["city"], row["state"]] if part) or "unknown"
+    locations = "unknown" if pd.isna(row["locations"]) else str(int(row["locations"]))
     st.markdown(
         f"- **Record source:** {source_text}\n"
         f"- **Website on record:** {website}\n"
-        f"- **Product categories on record:** {row['product_categories'] or 'none on record'}\n"
-        f"- **Matched Ultrachem categories:** {row['matched_categories'] or 'none'}\n"
+        f"- **City and state:** {location}\n"
+        f"- **Business type:** {row['business_type'] or 'unknown'}, {row['distributor_type'] or 'unknown'}\n"
+        f"- **Locations:** {locations}\n"
+        f"- **Product lines on record:** {row['product_lines'] or 'none on record'}\n"
+        f"- **Matched Ultrachem lines:** {row['matched_lines'] or 'none'}\n"
+        f"- **Fluid brands carried:** {row['fluid_brands_carried'] or 'unknown'} (fictional brand names)\n"
+        f"- **Aviation only:** {row['aviation_only'] or 'unknown'}\n"
         f"- **Data completeness:** {row['data_completeness'] or 'unknown'}\n"
         f"- **Scoring method:** {row['score_method']}"
     )
@@ -207,7 +219,7 @@ def show_data_sources(row):
 
 def show_flag_form(row):
     """Let the user flag wrong data. Flags last only for this browser session."""
-    with st.form(key=f"flag_{row['rank']}", clear_on_submit=True):
+    with st.form(key=f"flag_{row['name']}", clear_on_submit=True):
         note = st.text_area("What looks wrong? (optional)", placeholder="Example: this company stopped selling marine oil.")
         if st.form_submit_button("Flag wrong data"):
             st.session_state.flags.append({
@@ -221,17 +233,25 @@ def show_flag_form(row):
         st.write(f"This lead has **{count}** flag(s) this session.")
 
 
-def show_lead_detail(row, total_count):
-    """Everything about one lead: score, status, reasons, breakdown, and sources."""
+def show_lead_detail(row, ranked_count):
+    """Everything about one lead: score, status, next step, reasons, breakdown, and sources."""
     st.subheader(row["name"])
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Relative fit score", f"{int(row['score'])} / 100",
                 help="Compares leads in this list. It is not a probability.")
-    col2.metric("Rank", f"#{int(row['rank'])} of {total_count}")
-    col3.metric("Confidence", row["confidence"])
+    if row["status"] == "disqualified":
+        col2.metric("Rank", "Not ranked")
+        col3.metric("Status", "disqualified")
+    else:
+        col2.metric("Rank", f"#{row['rank']} of {ranked_count}")
+        col3.metric("Confidence", row["confidence"])
 
-    if row["needs_review"]:
+    if row["status"] == "disqualified":
+        reasons = " ".join(row["disqualify_reasons"].split(" | "))
+        notice("dq", f"<strong>Disqualified.</strong> {reasons} "
+                     "This lead is not in the recommended list.")
+    elif row["needs_review"]:
         notice("review", review_message(row))
     elif row["confidence"] == "high":
         notice("ok", "<strong>High confidence.</strong> The record has the key fields we check.")
@@ -240,6 +260,13 @@ def show_lead_detail(row, total_count):
         detail = f" Missing: {', '.join(missing)}." if missing else ""
         notice("medium", f"<strong>Medium confidence.</strong> Data completeness is "
                          f"{row['data_completeness']}.{detail}")
+
+    if row["why_attractive"]:
+        st.markdown("#### Why commercially attractive")
+        st.markdown(row["why_attractive"])
+    st.markdown("#### Recommended next step")
+    notice("action", row["recommended_next_step"])
+    st.caption("This text comes from fixed templates in src/score.py, not from AI.")
 
     st.markdown("#### Why this score")
     st.markdown("\n".join(f"- {reason}" for reason in row["reasons"].split(" | ")))
@@ -260,40 +287,49 @@ def main():
     if "flags" not in st.session_state:
         st.session_state.flags = []
 
-    st.title("Ultrachem Lead Intelligence")
+    st.title("Ultrachem Distributor Leads")
     show_sample_banner()
 
     if not SCORED_FILE.exists():
         st.error("data/scored_leads.csv not found. Run: .venv\\Scripts\\python.exe src/score.py")
         st.stop()
     leads = load_leads()
+    ranked_count = int(leads["rank"].notna().sum())
 
-    # Sidebar: filters. The flags list is added at the end of main().
+    # Sidebar: view and filters. The flags list is added at the end of main().
     with st.sidebar:
+        st.header("View")
+        show_all = st.toggle("Show all leads, including disqualified", value=False)
         st.header("Filters")
-        segments = sorted(leads["segment"].unique())
-        regions = sorted(leads["region"].unique())
+        types = sorted(leads["distributor_type"].unique())
+        cities = sorted(leads["city"].unique())
         st.caption("Leave a filter empty to show all.")
-        chosen_segments = st.multiselect("Segment", segments, placeholder="All segments")
-        chosen_regions = st.multiselect("Region", regions, placeholder="All regions")
+        chosen_types = st.multiselect("Distributor type", types, placeholder="All types")
+        chosen_cities = st.multiselect("City", cities, placeholder="All cities")
 
-    # An empty filter means "show all".
-    filtered = leads
-    if chosen_segments:
-        filtered = filtered[filtered["segment"].isin(chosen_segments)]
-    if chosen_regions:
-        filtered = filtered[filtered["region"].isin(chosen_regions)]
+    # Default view: the top ranked leads. Filters then narrow the view.
+    in_top = (leads["rank"] <= TOP_N).fillna(False)  # blank rank (disqualified) is never in the top
+    shown = leads if show_all else leads[in_top]
+    if chosen_types:
+        shown = shown[shown["distributor_type"].isin(chosen_types)]
+    if chosen_cities:
+        shown = shown[shown["city"].isin(chosen_cities)]
 
-    # A new table key per filter choice clears an old row click when filters change.
-    table_key = "lead_table_" + "|".join(chosen_segments + ["/"] + chosen_regions)
-    clicked_rank = show_ranked_list(filtered, len(leads), table_key)
+    # A new table key per view and filter choice clears an old row click when they change.
+    table_key = f"lead_table_{show_all}_" + "|".join(chosen_types + ["/"] + chosen_cities)
+    clicked_name = show_ranked_list(shown, show_all, table_key)
+    if not show_all:
+        more = ranked_count - TOP_N
+        dq_count = len(leads) - ranked_count
+        st.caption(f"Not shown: {more} lower-ranked leads and {dq_count} disqualified leads. "
+                   "Turn on \"Show all leads\" in the sidebar to see them.")
 
     st.divider()
     st.subheader("Lead detail")
-    if filtered.empty:
+    if shown.empty:
         st.info("No leads match these filters. Change the filters in the sidebar.")
     else:
-        show_detail_section(filtered, len(leads), clicked_rank)
+        show_detail_section(shown, ranked_count, clicked_name)
 
     st.divider()
     show_sample_banner()
@@ -313,31 +349,32 @@ def show_flags_sidebar():
         st.caption("Flags last only while this browser tab is open.")
 
 
-def show_detail_section(filtered, total_count, clicked_rank):
+def show_detail_section(shown, ranked_count, clicked_name):
     """Lead picker plus the detail view for the chosen lead.
-    The lead can be picked from the dropdown or by clicking a table row."""
-    options = filtered["rank"].tolist()
+    The lead can be picked from the dropdown or by clicking a table row.
+    Leads are identified by name, because disqualified leads have no rank."""
+    options = shown["name"].tolist()
 
-    # First visit: start on the top lead, or on ?rank=16 if it is in the URL.
-    if "chosen_rank" not in st.session_state:
+    # First visit: start on the top lead, or on ?rank=9 if it is in the URL.
+    if "chosen_name" not in st.session_state:
         start = st.query_params.get("rank", "")
-        st.session_state.chosen_rank = int(start) if start.isdigit() else options[0]
+        match = shown[shown["rank"] == int(start)] if start.isdigit() else shown.iloc[0:0]
+        st.session_state.chosen_name = match["name"].iloc[0] if len(match) else options[0]
     # A new row click moves the dropdown to that lead.
-    if clicked_rank is not None and clicked_rank != st.session_state.get("last_clicked"):
-        st.session_state.chosen_rank = clicked_rank
-    st.session_state.last_clicked = clicked_rank
-    # If filters hid the chosen lead, fall back to the top lead shown.
-    if st.session_state.chosen_rank not in options:
-        st.session_state.chosen_rank = options[0]
+    if clicked_name is not None and clicked_name != st.session_state.get("last_clicked"):
+        st.session_state.chosen_name = clicked_name
+    st.session_state.last_clicked = clicked_name
+    # If the view or filters hid the chosen lead, fall back to the first lead shown.
+    if st.session_state.chosen_name not in options:
+        st.session_state.chosen_name = options[0]
 
-    chosen_rank = st.selectbox(
-        "Choose a lead to see details",
-        options,
-        key="chosen_rank",
-        format_func=lambda r: f"#{r}  {filtered.loc[filtered['rank'] == r, 'name'].iloc[0]}",
-    )
-    row = filtered[filtered["rank"] == chosen_rank].iloc[0]
-    show_lead_detail(row, total_count)
+    def label(name):
+        row = shown[shown["name"] == name].iloc[0]
+        return f"Disqualified: {name}" if pd.isna(row["rank"]) else f"#{row['rank']}  {name}"
+
+    chosen_name = st.selectbox("Choose a lead to see details", options, key="chosen_name", format_func=label)
+    row = shown[shown["name"] == chosen_name].iloc[0]
+    show_lead_detail(row, ranked_count)
 
 
 main()

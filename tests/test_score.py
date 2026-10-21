@@ -14,15 +14,22 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
-from score import INPUT_FILE, NO_PRODUCT_MATCH_CAP, rank_companies, score_company  # noqa: E402
+from score import INPUT_FILE, TARGET_STATE, rank_companies, score_company  # noqa: E402
 
 # Rows in data/sample_companies.csv built as test cases.
 THIN_DATA_ROWS = [
-    "Harbor Route Transit Repair (Sample)",  # row 7: no website
-    "Northbay Plant Services (Sample)",      # row 11: name and region only
-    "Coral Keel Outboard Works (Sample)",    # row 14: little product detail
+    "Glades Road Auto Supply (Sample)",
+    "Naples Harbor Supply Co (Sample)",
+    "Gainesville Fleet Service Supply (Sample)",
 ]
-POOR_FIT_HIGH_COMPLETENESS = "Maple Lane Janitorial Wholesale (Sample)"  # row 20
+DISQUALIFIER_ROWS = {
+    "Skyport Aviation Fluids Supply (Sample)": "aviation_only",
+    "Peachtree Lube Distributors (Sample)": "outside_target_state",
+    "Coquina Quick Lube Centers (Sample)": "not_a_distributor",
+    "Seminole Parts Warehouse (Sample)": "existing_customer",
+    "Palm Coast Janitorial Wholesale (Sample)": "no_product_match",
+}
+POOR_FIT_HIGH_COMPLETENESS = "Palm Coast Janitorial Wholesale (Sample)"
 
 
 @pytest.fixture(scope="module")
@@ -31,39 +38,73 @@ def ranked():
     return rank_companies(pd.read_csv(INPUT_FILE)).set_index("name")
 
 
+def make_row(**changes):
+    """A complete, strong sample row. Pass keyword arguments to change fields."""
+    row = {
+        "business_type": "distributor", "distributor_type": "auto parts",
+        "city": "Tampa", "state": TARGET_STATE, "website": "test.example", "locations": "6",
+        "product_lines": "passenger vehicle oil; coolant", "fluid_brands_carried": "Coralwave",
+        "aviation_only": "no", "data_completeness": "high",
+    }
+    row.update(changes)
+    return pd.Series(row)
+
+
 def test_point_breakdown_sums_to_score(ranked):
-    parts = ranked[["product_points", "type_points", "segment_points", "region_points"]].sum(axis=1)
-    for name, row in ranked.iterrows():
-        if row["cap_applied"]:
-            # Capped rows: the parts add up to more than the cap, and the score is the cap.
-            assert parts[name] > NO_PRODUCT_MATCH_CAP, name
-            assert row["score"] == NO_PRODUCT_MATCH_CAP, name
-        else:
-            assert row["score"] == parts[name], name
+    parts = ranked[["product_points", "size_points", "brand_points", "type_points"]].sum(axis=1)
+    assert (ranked["score"] == parts).all()
 
 
-def test_no_match_cap_holds(ranked):
-    no_match = ranked[ranked["matched_count"] == 0]
-    assert len(no_match) > 0, "sample data should include rows with no product match"
-    assert (no_match["score"] <= NO_PRODUCT_MATCH_CAP).all()
+@pytest.mark.parametrize("name,rule", DISQUALIFIER_ROWS.items())
+def test_disqualifier_rows_are_disqualified(ranked, name, rule):
+    row = ranked.loc[name]
+    assert row["status"] == "disqualified"
+    assert rule in row["disqualified_by"].split("; ")
+    assert row["rank"] == ""                                # not ranked
+    assert row["recommended_next_step"].startswith("Do not pursue")
 
 
-def test_no_match_cap_holds_for_best_possible_other_fields():
-    # Perfect type, segment, and region, but sells nothing Ultrachem makes.
-    row = pd.Series({
-        "type": "distributor", "segment": "distributor", "region": "US Southeast",
-        "website": "test.example", "product_categories": "office supplies",
-        "data_completeness": "high",
-    })
-    result = score_company(row)
-    assert result["score"] == NO_PRODUCT_MATCH_CAP
-    assert result["cap_applied"]
+def test_no_disqualified_lead_in_top_10(ranked):
+    top_10 = ranked[ranked["rank"].isin(range(1, 11))]
+    assert len(top_10) == 10
+    assert (top_10["status"] != "disqualified").all()
+
+
+def test_strong_lead_outside_state_is_still_disqualified():
+    # A high score does not save a lead from a disqualifier.
+    result = score_company(make_row(
+        state="GA",
+        product_lines="passenger vehicle oil; gear oil; coolant; antifreeze",
+        fluid_brands_carried="Coralwave; Tidemark Oil",
+    ))
+    assert result["score"] == 100
+    assert result["status"] == "disqualified"
+
+
+def test_blank_fields_never_disqualify():
+    # Unknown data should go to review, not be thrown out.
+    result = score_company(make_row(state="", product_lines="", aviation_only="", data_completeness="low"))
+    assert result["disqualifiers"] == []
+    assert result["status"] == "needs review"
+
+
+def test_aviation_fluid_never_counts_as_a_match():
+    result = score_company(make_row(product_lines="aviation fluid; coolant"))
+    assert result["matched"] == ["coolant"]
+
+
+def test_unconfirmed_lines_earn_zero_points():
+    result = score_company(make_row(product_lines="hydraulic fluid; agricultural spray oil"))
+    assert result["points"]["product_fit"] == 0
+    assert "no_product_match" in result["disqualifiers"]
 
 
 @pytest.mark.parametrize("name", THIN_DATA_ROWS)
 def test_thin_data_rows_need_review(ranked, name):
-    assert ranked.loc[name, "confidence"] == "needs review"
-    assert ranked.loc[name, "needs_review"]
+    row = ranked.loc[name]
+    assert row["confidence"] == "needs review"
+    assert row["status"] == "needs review"
+    assert row["recommended_next_step"].startswith("Verify the record")
 
 
 def test_all_low_completeness_rows_need_review(ranked):
@@ -71,8 +112,14 @@ def test_all_low_completeness_rows_need_review(ranked):
     assert low["needs_review"].all()
 
 
-def test_poor_fit_with_high_completeness_is_not_flagged(ranked):
+def test_poor_fit_with_high_completeness_is_not_flagged_for_review(ranked):
     row = ranked.loc[POOR_FIT_HIGH_COMPLETENESS]
     assert row["data_completeness"] == "high"
-    assert row["score"] <= NO_PRODUCT_MATCH_CAP  # low score
-    assert not row["needs_review"]               # but confident, so no review flag
+    assert row["status"] == "disqualified"  # thrown out with a clear reason
+    assert not row["needs_review"]          # but confident, so no review flag
+
+
+def test_every_ranked_lead_has_why_and_next_step(ranked):
+    eligible = ranked[ranked["status"] != "disqualified"]
+    assert (eligible["why_attractive"].str.len() > 0).all()
+    assert (eligible["recommended_next_step"].str.len() > 0).all()

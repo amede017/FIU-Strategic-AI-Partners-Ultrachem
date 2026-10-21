@@ -2,11 +2,11 @@
 
 FIU MSIS capstone, ISM 6429 Business AI Capstone. Group 3, Strategic AI Partners.
 
-This is a prototype, not a market-ready product. It helps Ultrachem's sales team find, score, and explain B2B prospects: distributors, private label customers, and OEMs.
+This is a prototype, not a market-ready product. It helps Ultrachem's sales team find, score, and explain distributor leads in one state. Private label and OEM prospects are in the backlog.
 
 ## Status
 
-Sprint 1. The data is made-up sample data, and the scoring is rules-based. No real AI model runs yet. Any AI output in this repo is mocked, and the code and UI say so. Scoring criteria are our assumptions until the client confirms them.
+Sprint 1. The data is made-up sample data, and the scoring is rules-based. No real AI model runs yet. Any AI output in this repo is mocked, and the code and UI say so. Scoring criteria, disqualifiers, and the target state (Florida, a placeholder) are our assumptions until the sales team confirms them.
 
 ## How it works (planned)
 
@@ -67,9 +67,10 @@ Run step 1 again any time you change `data/sample_companies.csv` or the scoring 
 
 What the app does:
 
-- Shows the ranked leads with filters by segment and region.
-- Shows each lead's relative fit score, the reasons, a point breakdown, and the data sources.
+- Shows the top 10 recommended distributors by default, with filters by distributor type and city. A toggle shows all leads, including disqualified ones.
+- Shows each lead's relative fit score, why it is commercially attractive, a recommended next step, the reasons, a point breakdown, and the data sources. The "why" and "next step" text comes from fixed templates, not AI.
 - Marks leads with thin data as "needs review" and says what is missing.
+- Never ranks a disqualified lead, for example aviation-only, out of state, not a distributor, or an existing customer. The reason is shown instead.
 - Has a "Flag wrong data" button. Flags last only for the browser session and are not saved.
 
 The app reads only `data/scored_leads.csv` and makes no external calls. The theme settings, like font size and colors, are in `.streamlit/config.toml`.
