@@ -14,7 +14,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
-from score import INPUT_FILE, TARGET_STATE, rank_companies, score_company  # noqa: E402
+from score import INPUT_FILE, TARGET_STATES, rank_companies, score_company  # noqa: E402
 
 # Rows in data/sample_companies.csv built as test cases.
 THIN_DATA_ROWS = [
@@ -24,10 +24,11 @@ THIN_DATA_ROWS = [
 ]
 DISQUALIFIER_ROWS = {
     "Zephrin Aviation Fluids Supply (Sample)": "aviation_only",
-    "Ardlow Lube Distributors (Sample)": "outside_target_state",
+    "Ardlow Lube Distributors (Sample)": "outside_target_region",
     "Bellaquin Quick Lube Centers (Sample)": "not_a_distributor",
     "Hollisby Parts Warehouse (Sample)": "existing_customer",
     "Wrenmoor Janitorial Wholesale (Sample)": "no_product_match",
+    "Pellridge Lube Brokers (Sample)": "no_distributor_infrastructure",
 }
 POOR_FIT_HIGH_COMPLETENESS = "Wrenmoor Janitorial Wholesale (Sample)"
 
@@ -42,9 +43,9 @@ def make_row(**changes):
     """A complete, strong sample row. Pass keyword arguments to change fields."""
     row = {
         "business_type": "distributor", "distributor_type": "auto parts",
-        "city": "Tampa", "state": TARGET_STATE, "website": "test.example", "locations": "6",
+        "city": "Atlanta", "state": "GA", "website": "test.example", "locations": "6",
         "product_lines": "passenger vehicle oil; coolant", "fluid_brands_carried": "Coralwave",
-        "aviation_only": "no", "data_completeness": "high",
+        "aviation_only": "no", "has_warehouse": "yes", "has_sales_team": "yes", "data_completeness": "high",
     }
     row.update(changes)
     return pd.Series(row)
@@ -70,20 +71,34 @@ def test_no_disqualified_lead_in_top_10(ranked):
     assert (top_10["status"] != "disqualified").all()
 
 
-def test_strong_lead_outside_state_is_still_disqualified():
-    # A high score does not save a lead from a disqualifier.
+def test_strong_lead_outside_region_is_still_disqualified():
+    # A high score does not save a lead from a disqualifier. Florida is outside the region.
     result = score_company(make_row(
-        state="GA",
+        state="FL",
         product_lines="passenger vehicle oil; gear oil; coolant; antifreeze",
         fluid_brands_carried="Coralwave; Tidemark Oil",
     ))
     assert result["score"] == 100
     assert result["status"] == "disqualified"
+    assert result["disqualifiers"] == ["outside_target_region"]
+
+
+@pytest.mark.parametrize("state", TARGET_STATES)
+def test_every_target_state_is_in_region(state):
+    result = score_company(make_row(state=state))
+    assert "outside_target_region" not in result["disqualifiers"]
+
+
+@pytest.mark.parametrize("field", ["has_warehouse", "has_sales_team"])
+def test_no_warehouse_or_no_sales_team_disqualifies(field):
+    result = score_company(make_row(**{field: "no"}))
+    assert result["disqualifiers"] == ["no_distributor_infrastructure"]
 
 
 def test_blank_fields_never_disqualify():
     # Unknown data should go to review, not be thrown out.
-    result = score_company(make_row(state="", product_lines="", aviation_only="", data_completeness="low"))
+    result = score_company(make_row(state="", product_lines="", aviation_only="",
+                                    has_warehouse="", has_sales_team="", data_completeness="low"))
     assert result["disqualifiers"] == []
     assert result["status"] == "needs review"
 

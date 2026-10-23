@@ -22,7 +22,7 @@ SCORED_FILE = REPO_ROOT / "data" / "scored_leads.csv"
 # Import settings from score.py so the app and scorer never disagree.
 # This only reads settings. It does not re-score anything.
 sys.path.insert(0, str(REPO_ROOT / "src"))
-from score import FIELD_LABELS, TARGET_STATE_NAME, WEIGHTS  # noqa: E402
+from score import FIELD_LABELS, TARGET_REGION_NAME, WEIGHTS  # noqa: E402
 
 # The default view shows this many top-ranked leads.
 TOP_N = 10
@@ -73,7 +73,7 @@ def show_sample_banner():
         "<strong>Prototype with sample data.</strong> Every company here is made up. "
         "Scores come from fixed rules, <strong>not real AI</strong>. "
         "The rules are our assumptions until Ultrachem confirms them. "
-        f"{TARGET_STATE_NAME} is a placeholder until sales confirms the state.",
+        f"Target region: {TARGET_REGION_NAME}.",
     )
 
 
@@ -141,7 +141,7 @@ def show_ranked_list(leads, show_all, table_key):
         "Relative fit score": scores,
         "Status": leads.apply(status_label, axis=1),
         "Distributor type": leads["distributor_type"],
-        "City": leads["city"],
+        "Location": leads.apply(lambda r: ", ".join(p for p in [r["city"], r["state"]] if p), axis=1),
     })
 
     def color_status(value):
@@ -221,6 +221,8 @@ def show_data_sources(row):
         f"- **Matched Ultrachem lines:** {row['matched_lines'] or 'none'}\n"
         f"- **Fluid brands carried:** {row['fluid_brands_carried'] or 'unknown'} (fictional brand names)\n"
         f"- **Aviation only:** {row['aviation_only'] or 'unknown'}\n"
+        f"- **Has a warehouse:** {row['has_warehouse'] or 'unknown'}\n"
+        f"- **Has its own sales team:** {row['has_sales_team'] or 'unknown'}\n"
         f"- **Data completeness:** {row['data_completeness'] or 'unknown'}\n"
         f"- **Scoring method:** {row['score_method']}"
     )

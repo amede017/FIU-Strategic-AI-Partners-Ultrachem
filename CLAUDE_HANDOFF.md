@@ -4,6 +4,7 @@ Read CLAUDE.md first for the project background, team, rules, scope update, and 
 
 ## Current state of the repo
 Commits on origin/main, newest first:
+- d36d2ba Update scope docs after on-site visit
 - ce76866 Show not ranked for disqualified leads, rename sample data, update handoff notes
 - b534a43 Phase 1: distributor-focused scoring, disqualifiers, top 10 view
 - e7de789 Update project scope after client call
@@ -18,7 +19,7 @@ The tag sprint1-v1-before-scope-change marks fe04e7b, the last version before th
 
 Run git pull, git log --oneline, and git status before changing anything.
 
-## Scope after the on-site visit (code not updated yet)
+## Scope after the on-site visit (code partly updated)
 The on-site visit changed the scope. Details are in "Scope update after the on-site visit" in CLAUDE.md. In short:
 - The target region is Georgia, North Carolina, South Carolina, and Virginia. Overseas is out of scope. Florida was only a placeholder.
 - A distributor has a physical warehouse that receives truckloads, its own sales team, and resells to businesses. A company that only wants distributor pricing does not qualify.
@@ -28,26 +29,27 @@ The on-site visit changed the scope. Details are in "Scope update after the on-s
 - The company already has agents in Texas that find leads and send emails. Our value is the ranking and the explanations.
 - Next focus: the ranking system, and how an agent finds distributors itself instead of being given a list.
 
-The phase 1 code below was built before the visit. It still uses Florida as the target state, and several rules now conflict with the new scope. See "Suggested next tasks".
+The region switch is done: the code, sample data, app banner, README, and tests use the four target states, and the distributor definition is a disqualifier rule. Scoring version 2 is not built. The scoring weights are unchanged from phase 1, and two parts of the scoring still conflict with the visit. See "Suggested next tasks".
 
-## What is built (phase 1, before the on-site visit)
-- data/sample_companies.csv: 20 fictional distributors, 19 in Florida and 1 in Georgia. This matched the old Florida placeholder and needs new sample rows in the four target states. Every company name uses an invented word and ends in "(Sample)". No name uses a real business, venue, or place name. Every website uses the .example domain, and data_source is "sample" on every row. Columns include distributor type, city, state, locations, product lines, fluid brands carried, and an aviation-only flag. All brand names are fictional. In fluid_brands_carried, "none" means the company carries no other fluid brands and a blank means unknown. The file has 3 thin-data rows (should be flagged needs review) and 5 rows built to hit each disqualifier.
+## What is built (phase 1 plus the region switch)
+- data/sample_companies.csv: 21 fictional distributors, 20 in Georgia, North Carolina, South Carolina, and Virginia and 1 in Tennessee, outside the region. Every company name uses an invented word and ends in "(Sample)". No name uses a real business, venue, or place name. Every website uses the .example domain, and data_source is "sample" on every row. Columns include distributor type, city, state, locations, product lines, fluid brands carried, an aviation-only flag, has_warehouse, and has_sales_team. All brand names are fictional. In fluid_brands_carried, "none" means the company carries no other fluid brands and a blank means unknown. In has_warehouse and has_sales_team, "yes" or "no" is known and a blank means unknown. The file has 3 thin-data rows (should be flagged needs review) and 6 rows built to hit each disqualifier, including Pellridge Lube Brokers (Sample), which has no warehouse.
 - src/score.py: rules-based scoring out of 100. Product fit is 45 points, size from number of locations 20, other fluid brands carried 20, and distributor type 15. The size and brand weights are assumptions pending the on-site visit. All weights, product lines, disqualifiers, and next-step templates sit in one settings block at the top. The script never reads the notes column. It writes data/scored_leads.csv.
-  - Target state in the code: still Florida, the old placeholder. The confirmed target is Georgia, North Carolina, South Carolina, and Virginia. The settings block has not been updated yet.
+  - Target region: TARGET_STATES = GA, NC, SC, and VA in the settings block.
   - Scored product lines: motorcycle, passenger vehicle, commercial vehicle, marine, power generation (an unconfirmed reading of "electrical power"), locomotive, transmission, and gear oils, plus coolant, antifreeze, and refrigeration fluid.
   - Older lines (hydraulic, rust protective, heat transfer, agricultural spray) are in a zero-weight list labeled "unconfirmed, ask sales". Aviation fluid never counts as a match.
-  - Disqualifier rules: aviation only, outside the target state, not a distributor, already an Ultrachem customer (our assumption, not the company's rule, as the visit confirmed), and no in-scope product line. The "no in-scope product line" rule and the brand signal conflict with the visit, because a distributor does not need to sell lubricants today. A disqualified lead is never ranked, whatever its score. The score stays in the CSV for transparency. A blank field never disqualifies a lead. Unknown data sends it to needs review instead.
+  - Disqualifier rules: aviation only, outside the target region (outside_target_region), not a distributor, no warehouse or no sales team of its own (no_distributor_infrastructure, from the visit's distributor definition), already an Ultrachem customer (our assumption, not the company's rule, as the visit confirmed), and no in-scope product line. A blank has_warehouse or has_sales_team lowers confidence but never disqualifies. A disqualified lead is never ranked, whatever its score. The score stays in the CSV for transparency. A blank field never disqualifies a lead. Unknown data sends it to needs review instead.
   - Each ranked lead gets "why commercially attractive" text and a recommended next step. Both come from fixed templates, not AI.
   - Ranking: disqualified leads last and unranked, then score, then matched product lines, then data completeness, then name.
+  - Known conflict with the visit, and the next task: the "no in-scope product line" rule and the brand signal assume a distributor already sells fluids. The visit said a distributor does not need to sell lubricants today, as in the company's battery distributor example. Under the current rules, that distributor would be disqualified.
 - app/app.py: Streamlit app that reads only data/scored_leads.csv and makes no outside calls.
   - The default view is the top 10 recommended distributors. A toggle shows all leads, including disqualified ones, which show "Not ranked" in the score column.
-  - Filters by distributor type and city. Empty means all.
+  - Filters by distributor type and city. Empty means all. The table shows location as "City, ST".
   - A "click a row" hint sits above the table. Clicking a row opens that lead.
-  - The detail view shows why the lead is commercially attractive, the recommended next step, a "Why this score" list, a point breakdown, and data sources. Disqualified leads show the reason and what they would have scored.
+  - The detail view shows why the lead is commercially attractive, the recommended next step, a "Why this score" list, a point breakdown, and data sources, including warehouse and sales team. Disqualified leads show the reason and what they would have scored.
   - A needs-review state with a plain-language message, and a "flag wrong data" button kept only for the session.
-  - A banner says the data is sample, the scoring is rules-based, not AI, and Florida is a placeholder. The Florida wording is now out of date. The score is labeled a relative fit score, not a probability.
+  - A banner says the data is sample, the scoring is rules-based, not AI, and names the target region: Georgia, North Carolina, South Carolina, and Virginia. The score is labeled a relative fit score, not a probability.
 - .streamlit/config.toml: light theme locked, toolbar minimal, usage stats off.
-- tests/test_score.py: 17 pytest checks, all passing. Run with python -m pytest.
+- tests/test_score.py: 24 pytest checks, all passing. They cover each disqualifier, including outside the region and no warehouse or sales team, each of the four target states counting as in the region, and blanks never disqualifying. Run with python -m pytest.
 - Streamlit is pinned at 1.66.0 in requirements.txt. Do not upgrade it, because the sidebar fixes use CSS aimed at its internal elements.
 
 ## On hold: phase 2
@@ -87,8 +89,8 @@ The on-site visit has happened, but phase 2 is still not started. The next focus
 - Never commit secrets. If an API key is added later, put it in .env and also add .streamlit/secrets.toml to .gitignore.
 
 ## Suggested next tasks
-1. Confirm the environment works on this machine and the 17 tests pass.
-2. Update the code for the on-site visit scope, after I approve a plan: the four target states in the settings block and the app banner, new sample rows in those states, the distributor definition, category gap scoring that does not require lubricants today, pricing gap shown as "verify with sales", and a second look at the existing-customer and no-product-match rules. Then rerun score.py and the tests, and regenerate scored_leads.csv.
+1. Confirm the environment works on this machine and the 24 tests pass.
+2. Next task: scoring version 2, after I approve a plan. Resolve the conflict between the visit and the no-product-match rule and brand signal: score category gap so a distributor does not need to sell lubricants today, show pricing gap as "verify with sales", and take a second look at the existing-customer rule. Then rerun score.py and the tests, and regenerate scored_leads.csv.
 3. Plan how an agent could find distributors itself instead of being given a list.
 4. Phase 2, only when I ask, as described above.
 5. Optional app polish: make the lead detail easier to reach after a row click, and fit the Distributor type column without sideways scrolling.

@@ -26,9 +26,9 @@ import pandas as pd
 # All values are assumptions until Ultrachem's sales team confirms them.
 # =====================================================================
 
-# Placeholder until sales confirms the state.
-TARGET_STATE = "FL"
-TARGET_STATE_NAME = "Florida"
+# Target region, confirmed at the on-site visit.
+TARGET_STATES = ["GA", "NC", "SC", "VA"]
+TARGET_REGION_NAME = "Georgia, North Carolina, South Carolina, and Virginia"
 
 # Points for each part of the score. They add up to 100.
 WEIGHTS = {
@@ -98,9 +98,11 @@ TYPE_FIT = {
 # Delete or comment out a line to turn that rule off.
 DISQUALIFIERS = {
     "aviation_only": "Sells aviation fluids only. Ultrachem does not sell aviation fluids.",
-    "outside_target_state": f"Located outside {TARGET_STATE_NAME}, the target state.",
+    "outside_target_region": f"Located outside the target region: {TARGET_REGION_NAME}.",
     "not_a_distributor": "Not a distributor. Only distributors are in scope right now.",
-    # ASSUMPTION pending on-site visit: existing customers go to account managers, not new outreach.
+    # From the on-site visit: a distributor has a warehouse that receives truckloads and its own sales team.
+    "no_distributor_infrastructure": "Has no warehouse or no sales team of its own, so it does not qualify as a distributor.",
+    # ASSUMPTION, ours and not the company's rule: existing customers go to account managers, not new outreach.
     "existing_customer": "Already carries Ultrachem, so it is an existing customer, not a new lead.",
     "no_product_match": "Sells none of the Ultrachem product lines in scope.",
 }
@@ -121,6 +123,7 @@ NEXT_STEPS = {
 KEY_FIELDS = [
     "business_type", "distributor_type", "city", "state", "website",
     "locations", "product_lines", "fluid_brands_carried", "aviation_only",
+    "has_warehouse", "has_sales_team",
 ]
 
 # =====================================================================
@@ -138,6 +141,8 @@ FIELD_LABELS = {
     "fluid_brands_carried": "brands carried",
     "product_lines": "product lines",
     "aviation_only": "aviation status",
+    "has_warehouse": "warehouse status",
+    "has_sales_team": "sales team status",
 }
 
 
@@ -219,10 +224,12 @@ def check_disqualifiers(row, listed, matches):
     hits = []
     if row["aviation_only"] == "yes":
         hits.append("aviation_only")
-    if row["state"] and row["state"] != TARGET_STATE:
-        hits.append("outside_target_state")
+    if row["state"] and row["state"] not in TARGET_STATES:
+        hits.append("outside_target_region")
     if row["business_type"] and row["business_type"] != "distributor":
         hits.append("not_a_distributor")
+    if row["has_warehouse"] == "no" or row["has_sales_team"] == "no":
+        hits.append("no_distributor_infrastructure")
     if "ultrachem" in [b.lower() for b in split_list(row["fluid_brands_carried"])]:
         hits.append("existing_customer")
     if listed and not matches:
@@ -404,7 +411,7 @@ def rank_companies(companies):
         "product_points", "size_points", "brand_points", "type_points",
         "matched_count", "matched_lines", "missing_fields",
         "business_type", "distributor_type", "city", "state", "website", "locations",
-        "product_lines", "fluid_brands_carried", "aviation_only",
+        "product_lines", "fluid_brands_carried", "aviation_only", "has_warehouse", "has_sales_team",
         "data_completeness", "data_source", "score_method",
     ]
     return ranked[columns]
