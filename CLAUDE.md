@@ -3,12 +3,12 @@
 ## What this project is
 FIU MSIS capstone, ISM 6429 Business AI Capstone (Dr. Hemang Subramanian). Team: Group 3, Strategic AI Partners.
 Client: Ultrachem, a manufacturer and wholesaler of motor oils and other petroleum oils. Product lines include passenger and commercial vehicle oils, motorcycle, marine, and RV oils, transmission and gear oils, hydraulic fluids, rust and protective oils, industrial heat transfer fluids, and agricultural spray oils.
-We chose the client's first proposed problem: AI-powered B2B customer acquisition. The goal is to identify, qualify, and prioritize high-value distributors, private label customers, and OEM opportunities in the U.S. and abroad.
+We chose the client's first proposed problem: AI-powered B2B customer acquisition. The goal is to identify, qualify, and prioritize high-value distributors, private label customers, and OEM opportunities. After the on-site visit, the target region is Georgia, North Carolina, South Carolina, and Virginia, and overseas is out of scope. See the scope updates below.
 The deliverable is a prototype, not a market-ready product.
 
 ## Product vision
 For Ultrachem's sales team, a lead intelligence tool uses AI to find, score, and explain high-value distributor, private label, and OEM prospects so reps spend less time researching and more time in qualified conversations.
-Outcome metric: share of the top 20 ranked leads that the client's sales contact rates as worth contacting.
+Outcome metric: share of the top 10 ranked leads that the client's sales contact rates as worth contacting.
 
 ## How it works (planned)
 1. Collect candidate companies from public sources (company websites, directories, trade data).
@@ -69,19 +69,6 @@ README.md
 - Be honest about limits. Do not present assumptions or mock results as validated.
 - Make small, incremental changes when I ask for revisions instead of rewriting everything.
 
-## Open items
-The client call is done. Its outcomes are in "Scope update after client call" below.
-Questions for the on-site visit. Each answer changes the settings block in `src/score.py`:
-- Which state should we target? Florida is a placeholder until sales confirms.
-- Does a distributor carrying a competing brand help or hurt it as a lead? The prototype assumes it helps.
-- Should existing Ultrachem customers be excluded? The prototype assumes yes.
-- What does "electrical power" cover? The prototype reads it as power generation oil, which is unconfirmed.
-- Which distributor types matter most?
-- What disqualifies a distributor?
-- How does the sales cycle work, from first contact to first order?
-- What format and framework do the existing agents use, so our ranking output can connect to them?
-- Still open from before: whether the client wants an EV-related segment. Treat as a question for the client, not an assumption.
-
 ## First tasks for Claude Code
 1. Check the environment: Python version, that `.venv` is active, and which packages are installed.
 2. Create the folders above, a README, and a `.gitignore` that covers `.venv/`, `.env`, `__pycache__/`, and `.ipynb_checkpoints/`.
@@ -91,11 +78,32 @@ Questions for the on-site visit. Each answer changes the settings block in `src/
 
 ## Scope update after client call
 - Focus: distributors only. Private label and OEM moved to backlog.
-- Geography: one state, to be confirmed with the sales team.
+- Geography: Georgia, North Carolina, South Carolina, and Virginia, confirmed at the on-site visit.
 - Output: a short curated list. For each lead: who to pursue, why it is commercially attractive, and the recommended next step.
 - Human in the loop: sales reps approve, reject, or edit recommendations with a reason.
 - Delivery: an agent that connects to Ultrachem's existing agent network. The ranking must be saved as structured data another agent can consume.
 - Products: transportation (motorcycles, vehicles, boats, electrical power, locomotive) and water-based (coolants, antifreeze, refrigeration). No aviation fluids.
 - Outcome metric: share of the top 10 recommended distributors the reps say they would contact.
 - Top risk: the agent surfaces leads that are not real opportunities.
-- Still unknown: disqualifying factors, sales cycle, state, agent framework. To be learned at the on-site visit.
+- Still unknown after this call: disqualifying factors, sales cycle, agent framework. The on-site visit settled the target region and what counts as a distributor. See below.
+
+## Scope update after the on-site visit
+- Target region: Georgia, North Carolina, South Carolina, and Virginia. Overseas is out of scope. Florida was only a placeholder.
+- A distributor has a physical warehouse that receives truckloads, its own sales team, and resells to businesses such as shops and retail chains. A company that only wants distributor pricing, without the infrastructure, does not qualify.
+- Any distributor type is fine if the product fits. A distributor does not need to sell lubricants today. The company's example was a battery distributor that added Ultra1Plus and sold well.
+- Two fit tests from the company: category gap, and pricing gap (the distributor makes money and the deal works for both sides). Pricing gap cannot come from public data, so show it as "verify with sales".
+- The company already has agents in Texas that find leads, scrape pages, and send emails. Our value is the ranking and the explanations. Referrals from clients matter to them.
+- Excluding existing customers is our assumption, not their rule. They have little presence in these four states.
+- Tooling: Python. The agent is added to their agent stack later.
+- Next focus: the ranking system, and how an agent finds distributors itself instead of being given a list.
+
+## Open items
+- Dataset: the AI lead said he may provide one. SBDC may supply a list of businesses. Contents, format, and terms are unknown. Keep any real data out of the repo and do not use it with AI tools without approval.
+- The company's checklist of good and bad distributors has not been received.
+- Whether referrals or warm introductions should affect the ranking.
+- How the Texas agent works and what it outputs.
+- The agent framework and data format.
+- Whether a distributor carrying a competing brand helps or hurts it as a lead. The prototype assumes it helps.
+- What "electrical power" covers. The prototype reads it as power generation oil, which is unconfirmed.
+- The detailed sales cycle, from first call to first order, was not captured at the visit.
+- No follow-up meeting is scheduled. We can contact the people we met.
